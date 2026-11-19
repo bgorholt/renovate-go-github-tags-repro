@@ -1,7 +1,8 @@
 # Reproduction: GitHub GraphQL tag query fails for `aws/aws-sdk-go-v2` submodules
 
 Minimal reproduction for the Renovate pull request that scopes the GitHub tag
-lookup of Go modules by submodule prefix. Discussion:
+lookup of Go modules by submodule prefix:
+https://github.com/renovatebot/renovate/pull/48226. Discussion:
 https://github.com/renovatebot/renovate/discussions/48043
 
 ## Current behavior

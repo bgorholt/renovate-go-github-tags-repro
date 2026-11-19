@@ -1,9 +1,9 @@
 # Results: fork vs. stock
 
-Generated 2026-11-19 12:43 UTC from `logs-*.txt` by `summarize.sh`, one run per variant.
+Generated 2026-11-19 12:57 UTC from `logs-*.txt` by `summarize.sh`, one run per variant.
 
 - Stock: `renovate@44.222.5` (npx)
-- Fork: `feat/go-scope-github-tags-by-prefix` @ `6a59ba9313`, uncommitted changes in `lib/`: no
+- Fork: `feat/go-scope-github-tags-by-submodule-prefix` @ `8794783c14`, uncommitted changes in `lib/`: no
 - Repository: this one (`go.mod` with `github.com/aws/aws-sdk-go-v2/config` and `.../service/s3`), `--platform=local`, `GITHUB_COM_TOKEN` from `gh auth token`
 
 ## Commands
@@ -23,10 +23,10 @@ A run is correct when it finishes, finds both updates and gets the GitHub tag da
 
 | Variant | Correct | Updates found | Failed GraphQL POSTs | Lookups with empty GraphQL data | GitHub tag errors | Lookup failures | api.github.com requests | Slowest GitHub request | Run duration |
 |---|---|---|---|---|---|---|---|---|---|
-| fork-google | yes | 2/2 | 0 | 0 | 0 | 0 | 27 | 1.3s | 11.3s |
-| fork-direct | yes | 2/2 | 0 | 0 | 0 | 0 | 27 | 1.0s | 12.0s |
-| stock-google | no | 2/2 | 5 | 0 | 2 | 0 | 21 | 11.2s | 86.4s |
-| stock-direct | no (aborted: external-host-error) | 0/2 | 5 | 0 | 0 | 0 | 5 | 11.1s | 54.3s |
+| fork-google | yes | 2/2 | 0 | 0 | 0 | 0 | 27 | 1.1s | 10.8s |
+| fork-direct | yes | 2/2 | 0 | 0 | 0 | 0 | 27 | 1.1s | 11.0s |
+| stock-google | no | 2/2 | 0 | 2 | 2 | 0 | 14 | 11.2s | 12.6s |
+| stock-direct | no (aborted: external-host-error) | 0/2 | 5 | 0 | 0 | 0 | 8 | 11.0s | 84.4s |
 
 ## How the numbers are taken from the logs
 

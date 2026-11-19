@@ -60,4 +60,11 @@ time gh api graphql -f query="$q" -f prefix="config/"
 ```
 
 Observed on 2026-11-16: unscoped returned the GitHub "Unicorn" error page after
-about 12 s, scoped returned the `config/*` tags after about 1 s.
+about 12 s, scoped returned data after about 1 s.
+
+Note: GitHub's `refs(query:)` is a substring match on the ref name, not a prefix
+match, so `config/` also returns e.g. `service/appconfig/...`. The result is a
+superset (969 refs for `config/`, 348 for `service/s3/`, against tens of
+thousands unscoped). It is not anchorable: `^config/` returns nothing. Exact
+prefix matching therefore still has to happen client-side, which Renovate
+already does.

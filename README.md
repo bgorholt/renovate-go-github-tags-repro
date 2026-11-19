@@ -4,44 +4,63 @@ Minimal reproduction for the Renovate pull request that scopes the GitHub tag
 lookup of Go modules by submodule prefix. Discussion:
 https://github.com/renovatebot/renovate/discussions/48043
 
-## Problem
+## Current behavior
 
 For Go modules hosted in `github.com/aws/aws-sdk-go-v2` (about 400 independently
 tagged submodules, tens of thousands of tags), the GitHub GraphQL tag query sent
 by Renovate is unscoped: `refs(refPrefix:"refs/tags/", orderBy:{field:TAG_COMMIT_DATE})`.
-GitHub cannot resolve it in time and answers HTTP 502 after about 10 s, or the
-request hits a short `hostRules` timeout. Renovate catches the error and logs
-`Error fetching GitHub Tags for Go module`, so every affected module costs
-about 10 s per run and loses the GitHub release/tag timestamps.
+GitHub cannot resolve it in time. It answers HTTP 502/504 after about 10 s,
+sometimes HTTP 200 without `data`, and after repeated attempts a 403 secondary
+rate limit. Renovate retries with smaller page sizes, so one lookup can cost
+up to five ~10 s requests.
 
-The query is reached in two ways:
+The query is reached in two ways, with different consequences:
 
-- with the default `GOPROXY`, through `addGithubTimestamps`
-- with `GOPROXY=direct`, through `GithubTagsDatasource`
+- With the default `GOPROXY`, through `addGithubTimestamps`: Renovate logs
+  `Error fetching GitHub Tags for Go module`. The versions still come from the
+  proxy, but the GitHub tag timestamps are lost (the proxy's commit time is used
+  instead).
+- With `GOPROXY=direct`, through `GithubTagsDatasource`: the GitHub tags are the
+  only version source, so the lookup fails (`Failed to look up go package …:
+  no-result`) and no update is found.
+
+## Expected behavior
+
+The tag query is scoped to the submodule prefix (`refs(query: "service/s3/")`).
+GitHub answers it in about 1 s, both lookups find their updates, and the GitHub
+tag timestamps are applied.
 
 ## Reproduce
 
-`go.mod` pins old versions of several aws-sdk-go-v2 submodules, so Renovate has
-lookups to do. Run Renovate locally. A GitHub token is required, because the
-GraphQL API does not work unauthenticated.
+`go.mod` pins old versions of two aws-sdk-go-v2 submodules, so Renovate has
+lookups to do. The scripts run Renovate locally (`--platform=local`, no
+branches or PRs are created) and need:
+
+- the [`gh` CLI](https://cli.github.com/), logged in (`gh auth login`). The
+  token is passed as `GITHUB_COM_TOKEN`. `RENOVATE_TOKEN` does not work here,
+  because with `--platform=local` it is not used for github.com lookups, so the
+  GraphQL API would be called unauthenticated.
+- Node.js, and a checkout of the PR branch, built with
+  `pnpm install && pnpm build`.
+
+Run all four variants (fork vs. stock `renovate@44.222.5`, Google proxy vs.
+`GOPROXY=direct`) and write [`results.md`](results.md):
 
 ```sh
-export RENOVATE_TOKEN=<github token>   # no special scopes needed
-LOG_LEVEL=debug npx renovate --platform=local
-# and the direct path:
-GOPROXY=direct LOG_LEVEL=debug npx renovate --platform=local
+RENOVATE_FORK_DIR=../renovate ./reproduce.sh
 ```
 
-Look for:
+Or run a single variant; the debug log goes to `logs-<label>.txt`:
 
 ```sh
-... | grep -E 'api.github.com/graphql|Error fetching GitHub Tags for Go module'
+GOPROXY=direct ./run.sh stock-direct STOCK
+GOPROXY=direct RENOVATE_FORK_DIR=../renovate ./run.sh fork-direct FORK
 ```
 
-Without the change you see `POST https://api.github.com/graphql` failing
-(HTTP 502 after about 10 s, or `ETIMEDOUT` with a short host rule timeout) and
-`Error fetching GitHub Tags for Go module` for each submodule. With the change
-the same lookups finish in about 0.3 to 0.9 s with no errors.
+[`results.md`](results.md) lists the failed GitHub requests, tag errors, lookup
+failures, updates found and timings per variant, and explains how each number
+is taken from the logs. GitHub's behavior varies from run to run; the
+difference between fork and stock does not.
 
 ## Query without Renovate
 
@@ -58,9 +77,6 @@ time gh api graphql -f query="$q"
 # scoped by submodule prefix: HTTP 200 with data in about 1 s
 time gh api graphql -f query="$q" -f prefix="config/"
 ```
-
-Observed on 2026-11-16: unscoped returned the GitHub "Unicorn" error page after
-about 12 s, scoped returned data after about 1 s.
 
 Note: GitHub's `refs(query:)` is a substring match on the ref name, not a prefix
 match, so `config/` also returns e.g. `service/appconfig/...`. The result is a
